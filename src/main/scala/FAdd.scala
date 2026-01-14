@@ -43,7 +43,7 @@ class FAddIO extends Bundle {
 }
 
 
-class FAddFarPathIO extends Bundle {
+class FAddPathIO extends Bundle {
     val biggerSrc = Input(UInt(32.W))
     val smallerSrc = Input(UInt(32.W))
     val op = Input(Bool())
@@ -55,7 +55,7 @@ class FAddFarPath extends Module {
     import FPUtils._
     import IEEE754Constants._
 
-    val io = IO(new FAddFarPathIO())
+    val io = IO(new FAddPathIO())
 
     // Decompose floating-point operands into IEEE 754 fields
     val (biggerSign, biggerExponent, biggerMantissa) = floatBreakdown(io.biggerSrc)
@@ -115,6 +115,65 @@ class FAddFarPath extends Module {
     // Result sign matches the bigger operand
     val resultSign = biggerSign
     io.result := Cat(resultSign, resultExponent, resultMantissaFinal(MANTISSA_HIGH, MANTISSA_LOW))
+}
+
+
+class FAddClosePath extends Module {
+    import FPUtils._
+    import IEEE754Constants._
+
+    val io = IO(new FAddPathIO())
+
+    // Decompose floating-point operands into IEEE 754 fields
+    val (biggerSign, biggerExponent, biggerMantissa) = floatBreakdown(io.biggerSrc)
+    val (smallerSign, smallerExponent, smallerMantissa) = floatBreakdown(io.smallerSrc)
+
+    // Determine effective operation (add or subtract based on signs)
+    val closeop = biggerSign ^ smallerSign ^ io.op
+
+    // Add implicit leading 1 to mantissas
+    val (biggerMantissaSB, smallerMantissaSB) = (Cat(1.U, biggerMantissa), Cat(1.U, smallerMantissa))
+    val biggerMantissaFull = Cat(biggerMantissaSB, 0.U(1.W))
+
+    // Align smaller mantissa by shifting right according to exponent difference
+    val smallerMantissaExtended = Cat(smallerMantissaSB, 0.U(1.W))
+    val smallerMantissaFull = Mux(io.expDiff(0), smallerMantissaExtended >> 1, smallerMantissaExtended)
+    // leading zero predictor
+    def leadingZeroPredictor(src1: UInt, src2: UInt, closeop: Bool): UInt = {
+        val t = Reverse(src1 ^ src2)
+        val z = Reverse(~(src1 | src2))
+        val f = VecInit.tabulate(25)(i => 
+            !t(i) & !(if (i == 24) true.B else z(i + 1))
+        )
+        Mux(closeop, PriorityEncoder(f), 0.U)
+    }
+    val lzPredict = leadingZeroPredictor(biggerMantissaFull, smallerMantissaFull, closeop)
+    // perform addition or subtraction for mantissa
+    val (sum, carry) = Adder(biggerMantissaFull, Mux(closeop === 1.U, ~smallerMantissaFull, smallerMantissaFull), closeop, 25)
+    // if the expDiff == 0, and closeop is minus and the carry is zero, then we need to get the absolute value of the sum
+    val (resultMantissaAbs, resultMantissaAbsCarry) = Adder(0.U, ~sum(24, 1), 1.U, 25)
+    val resultMantissaAbsFixed = Mux(!io.expDiff(0) && closeop === 1.U && carry === 0.U, resultMantissaAbs, sum(24, 1))
+    // fix prediction enable
+    def fixPredictionEn(src: UInt, prediction: UInt, closeop: Bool): UInt = {
+        val srcShifted = src << prediction
+        !srcShifted(23) & closeop
+    }
+    val fixPredictionEnable = fixPredictionEn(resultMantissaAbsFixed, lzPredict, closeop)
+    // if the expDiff == 1, we need 1bit round off
+    val (resultMantissaRoundOff, overflow) = Adder(sum(24, 1), 0.U, sum(0) & sum(1), 24)
+    // val resultMantissa = Mux(io.expDiff(0), Cat(overflow, resultMantissaRoundOff) >> overflow,  resultMantissaAbsFixed)
+
+    // calculate result exponent: minus lzpredict first. if fix prediction enable, minus 1, moreover if overflow, add 1
+    val (exponentOffset, _) = Adder(lzPredict, 
+        Cat(Fill(EXP_WIDTH - 1, !fixPredictionEnable & overflow), fixPredictionEnable | !overflow),
+        fixPredictionEnable ^ overflow, 
+        EXP_WIDTH
+    )
+    val (resultExponent, _) = Adder(biggerExponent, ~exponentOffset, 1.U, EXP_WIDTH)
+    val resultMantissa = Mux(io.expDiff(0), Cat(overflow, resultMantissaRoundOff),  resultMantissaAbsFixed) << exponentOffset
+    val resultSign = Mux(closeop === 1.U && carry === 0.U, !biggerSign, biggerSign)
+    io.result := Cat(resultSign, resultExponent, resultMantissa(MANTISSA_HIGH, MANTISSA_LOW))
+    
 }
 
 // TODO: Complete FAdd module implementation
