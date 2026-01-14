@@ -9,7 +9,9 @@ class FAddFarPathTest extends AnyFlatSpec with ChiselScalatestTester {
     require(sign == 0 || sign == 1, "Sign must be 0 or 1")
     require(exp >= 0 && exp <= 255, "Exponent must be 0-255")
     require(mantissa >= 0 && mantissa < (1 << 23), "Mantissa must be 23 bits")
-    BigInt((sign << 31) | (exp << 23) | mantissa)
+    val bits = (sign << 31) | (exp << 23) | mantissa
+    // Convert to unsigned 32-bit value
+    BigInt(bits & 0xFFFFFFFFL)
   }
 
   // Helper to extract components
@@ -95,8 +97,9 @@ class FAddFarPathTest extends AnyFlatSpec with ChiselScalatestTester {
   it should "handle effective subtraction (different signs, op=add)" in {
     test(new FAddFarPath) { dut =>
       // Test: 8.0 + (-2.0) = 6.0
-      // 8.0 = 0 10000010 00000000000000000000000 (exp=130)
-      // -2.0 = 1 10000000 00000000000000000000000 (exp=128)
+      // 8.0 = 0 10000010 00000000000000000000000 (exp=130, represents 1.0 × 2^3)
+      // -2.0 = 1 10000000 00000000000000000000000 (exp=128, represents 1.0 × 2^1)
+      // Result: 6.0 = 1.5 × 2^2, so exp=129
       val bigger = floatToBits(0, 130, 0)
       val smaller = floatToBits(1, 128, 0)
 
@@ -111,7 +114,7 @@ class FAddFarPathTest extends AnyFlatSpec with ChiselScalatestTester {
       val (resSign, resExp, resMant) = extractFloat(result)
 
       assert(resSign == 0, s"Sign should be 0, got $resSign")
-      assert(resExp == 130, s"Exponent should be 130, got $resExp")
+      assert(resExp == 129, s"Exponent should be 129, got $resExp")
     }
   }
 
