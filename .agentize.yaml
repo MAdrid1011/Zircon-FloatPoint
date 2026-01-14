@@ -1,0 +1,6 @@
+project:
+  name: Zircon-FloatPoint
+git:
+  default_branch: main
+agentize:
+  commit: b22dcbaee68ac524429f0aa905b72b2fa13d4ffa
