@@ -11,10 +11,10 @@ target/
 .bloop/
 .bsp/
 .cursor/
-.cursorrules
-.cursorignore
-.cursorignorerules
-.cursorignorerulesrules
-.cursorignorerulesrulesrules
-.cursorignorerulesrulesrulesrules
-.cursorignorerulesrulesrulesrulesrules
+test_run_dir/
+
+# ChiselTest artifacts
+test_run_dir/
+
+# Temporary files
+.tmp/

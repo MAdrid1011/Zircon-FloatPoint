@@ -12,3 +12,5 @@ addCompilerPlugin ("org.chipsalliance" % "chisel-plugin" % chiselVersion cross C
 libraryDependencies += "org.chipsalliance" %% "chisel" % chiselVersion
 libraryDependencies += "org.typelevel" %% "spire" % "0.18.0"
 libraryDependencies += "edu.berkeley.cs" %% "chiseltest" %"6.0.0"
+libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.17.0" % Test
+libraryDependencies += "org.scalatestplus" %% "scalacheck-1-17" % "3.2.17.0" % Test
