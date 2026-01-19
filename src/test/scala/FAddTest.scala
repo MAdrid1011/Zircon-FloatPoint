@@ -8,9 +8,6 @@ class FAddTest extends AnyFlatSpec with ChiselScalatestTester {
   // Enable VCD waveform output
   val vcdAnnotation = Seq(WriteVcdAnnotation)
 
-  // Floating-point comparison tolerance
-  val FLOATING_POINT_TOLERANCE = 1e-6
-
   // Helper function to create IEEE 754 single-precision float
   def floatToBits(sign: Int, exp: Int, mantissa: Int): BigInt = {
     require(sign == 0 || sign == 1, "Sign must be 0 or 1")
@@ -73,12 +70,12 @@ class FAddTest extends AnyFlatSpec with ChiselScalatestTester {
 
         val result = dut.io.result.peek().litValue
         val expected = if (op) src1 - src2 else src1 + src2
-        val resultFloat = bitsToFloat(result)
+        val expectedBits = floatToBigIntBits(expected)
 
-        println(f"$desc: result=$resultFloat%.10f, expected=$expected%.10f")
+        println(f"$desc: result=0x${result.toString(16)}, expected=0x${expectedBits.toString(16)}")
         assert(
-          Math.abs(resultFloat - expected) < FLOATING_POINT_TOLERANCE,
-          f"Mismatch: $desc\nResult: $resultFloat%.10f\nExpected: $expected%.10f"
+          result == expectedBits,
+          f"Mismatch: $desc\nResult bits: 0x${result.toString(16)} (${bitsToFloat(result)})\nExpected bits: 0x${expectedBits.toString(16)} ($expected)"
         )
       }
     }
@@ -113,15 +110,13 @@ class FAddTest extends AnyFlatSpec with ChiselScalatestTester {
 
           val result = dut.io.result.peek().litValue
           val expected = if (op) f1 - f2 else f1 + f2
-          val resultFloat = bitsToFloat(result)
+          val expectedBits = floatToBigIntBits(expected)           
 
-          if (!isSpecialValue(expected) && !isSpecialValue(resultFloat)) {
+          if (!isSpecialValue(expected) && !isSpecialBits(result)) {
             farPathCount += 1
-            // Use relative error for floating point comparison
-            val relativeError = if (expected != 0) Math.abs((resultFloat - expected) / expected) else Math.abs(resultFloat - expected)
             assert(
-              relativeError < FLOATING_POINT_TOLERANCE || Math.abs(resultFloat - expected) < FLOATING_POINT_TOLERANCE,
-              f"Far path test $i failed:\nf1=$f1%.10e (exp=$exp1)\nf2=$f2%.10e (exp=$exp2)\nop=$op\nResult: $resultFloat%.10e\nExpected: $expected%.10e\nRelative error: $relativeError%.10e"
+              result == expectedBits,
+              f"Far path test $i failed:\nf1=$f1%.10e (exp=$exp1, 0x${bits1.toString(16)})\nf2=$f2%.10e (exp=$exp2, 0x${bits2.toString(16)})\nop=$op\nResult bits: 0x${result.toString(16)} (${bitsToFloat(result)})\nExpected bits: 0x${expectedBits.toString(16)} ($expected)"
             )
           }
         }
@@ -160,15 +155,13 @@ class FAddTest extends AnyFlatSpec with ChiselScalatestTester {
 
           val result = dut.io.result.peek().litValue
           val expected = if (op) f1 - f2 else f1 + f2
-          val resultFloat = bitsToFloat(result)
+          val expectedBits = floatToBigIntBits(expected)
 
-          if (!isSpecialValue(expected) && !isSpecialValue(resultFloat)) {
+          if (!isSpecialValue(expected) && !isSpecialBits(result)) {
             closePathCount += 1
-            // Use relative error for floating point comparison
-            val relativeError = if (expected != 0) Math.abs((resultFloat - expected) / expected) else Math.abs(resultFloat - expected)
             assert(
-              relativeError < FLOATING_POINT_TOLERANCE || Math.abs(resultFloat - expected) < FLOATING_POINT_TOLERANCE,
-              f"Close path test $i failed:\nf1=$f1%.10e (exp=$exp1)\nf2=$f2%.10e (exp=$exp2)\nop=$op\nResult: $resultFloat%.10e\nExpected: $expected%.10e\nRelative error: $relativeError%.10e"
+              result == expectedBits,
+              f"Close path test $i failed:\nf1=$f1%.10e (exp=$exp1, 0x${bits1.toString(16)})\nf2=$f2%.10e (exp=$exp2, 0x${bits2.toString(16)})\nop=$op\nResult bits: 0x${result.toString(16)} (${bitsToFloat(result)})\nExpected bits: 0x${expectedBits.toString(16)} ($expected)"
             )
           }
         }
@@ -205,13 +198,12 @@ class FAddTest extends AnyFlatSpec with ChiselScalatestTester {
 
           val result = dut.io.result.peek().litValue
           val expected = if (op) f1 - f2 else f1 + f2
-          val resultFloat = bitsToFloat(result)
+          val expectedBits = floatToBigIntBits(expected)
 
-          if (!isSpecialValue(expected) && !isSpecialValue(resultFloat)) {
-            val relativeError = if (expected != 0) Math.abs((resultFloat - expected) / expected) else Math.abs(resultFloat - expected)
+          if (!isSpecialValue(expected) && !isSpecialBits(result)) {
             assert(
-              relativeError < FLOATING_POINT_TOLERANCE || Math.abs(resultFloat - expected) < FLOATING_POINT_TOLERANCE,
-              f"Boundary test failed at expDiff=$expDiff:\nf1=$f1%.10e\nf2=$f2%.10e\nop=$op\nResult: $resultFloat%.10e\nExpected: $expected%.10e"
+              result == expectedBits,
+              f"Boundary test failed at expDiff=$expDiff:\nf1=$f1%.10e (0x${bits1.toString(16)})\nf2=$f2%.10e (0x${bits2.toString(16)})\nop=$op\nResult bits: 0x${result.toString(16)} (${bitsToFloat(result)})\nExpected bits: 0x${expectedBits.toString(16)} ($expected)"
             )
           }
         }
@@ -250,24 +242,22 @@ class FAddTest extends AnyFlatSpec with ChiselScalatestTester {
 
           val result = dut.io.result.peek().litValue
           val expected = if (op) f1 - f2 else f1 + f2
-          val resultFloat = bitsToFloat(result)
+          val expectedBits = floatToBigIntBits(expected)
 
           // Only validate if result is also not a special value
-          if (!isSpecialValue(expected) && !isSpecialValue(resultFloat) && !isSpecialBits(result)) {
+          if (!isSpecialValue(expected) && !isSpecialBits(result)) {
             totalTests += 1
-            val relativeError = if (expected != 0) Math.abs((resultFloat - expected) / expected) else Math.abs(resultFloat - expected)
             
-            if (relativeError < FLOATING_POINT_TOLERANCE || Math.abs(resultFloat - expected) < FLOATING_POINT_TOLERANCE) {
+            if (result == expectedBits) {
               successCount += 1
             } else {
               println(f"Test $i failed:")
               println(f"  f1=$f1%.10e (0x${bits1.toString(16)})")
               println(f"  f2=$f2%.10e (0x${bits2.toString(16)})")
               println(f"  op=$op")
-              println(f"  Result: $resultFloat%.10e (0x${result.toString(16)})")
-              println(f"  Expected: $expected%.10e")
-              println(f"  Relative error: $relativeError%.10e")
-              assert(false, "Test failed - see details above")
+              println(f"  Result bits: 0x${result.toString(16)} (${bitsToFloat(result)})")
+              println(f"  Expected bits: 0x${expectedBits.toString(16)} ($expected)")
+              assert(false, "Test failed - exact bit mismatch")
             }
           }
         }
@@ -299,14 +289,13 @@ class FAddTest extends AnyFlatSpec with ChiselScalatestTester {
 
           val result = dut.io.result.peek().litValue
           val expected = if (op) src1 - src2 else src1 + src2
-          val resultFloat = bitsToFloat(result)
+          val expectedBits = floatToBigIntBits(expected)
 
-          if (!isSpecialValue(expected) && !isSpecialValue(resultFloat)) {
-            println(f"$desc: result=$resultFloat%.10f, expected=$expected%.10f")
-            val relativeError = if (expected != 0) Math.abs((resultFloat - expected) / expected) else Math.abs(resultFloat - expected)
+          if (!isSpecialValue(expected) && !isSpecialBits(result)) {
+            println(f"$desc: result=0x${result.toString(16)}, expected=0x${expectedBits.toString(16)}")
             assert(
-              relativeError < FLOATING_POINT_TOLERANCE || Math.abs(resultFloat - expected) < FLOATING_POINT_TOLERANCE,
-              f"Mismatch: $desc\nResult: $resultFloat%.10f\nExpected: $expected%.10f"
+              result == expectedBits,
+              f"Mismatch: $desc\nResult bits: 0x${result.toString(16)} (${bitsToFloat(result)})\nExpected bits: 0x${expectedBits.toString(16)} ($expected)"
             )
           }
         }

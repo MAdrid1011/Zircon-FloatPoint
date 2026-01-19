@@ -37,6 +37,12 @@ This file implements IEEE 754 single-precision floating-point addition hardware 
 - **Does not handle**: Special values (NaN, Infinity, denormals, zero)
 - **Does not handle**: Near-path cases (expDiff ≤ 1)
 
+#### Performance Optimization: Overflow Prediction
+Uses AND-reduction to predict rounding overflow in parallel with the rounding adder:
+- **Observation**: For `x + 1`, overflow occurs iff all bits of `x` are 1
+- **Implementation**: `overflow = roundPlus1 && resultMantissaSB.andR`
+- **Benefit**: AND-reduction is O(log n) depth, computed in parallel with O(n) adder
+
 #### Error Conditions
 - No explicit error signaling implemented
 - Undefined behavior if preconditions are violated
@@ -80,6 +86,13 @@ This file implements IEEE 754 single-precision floating-point addition hardware 
 - **Does not handle**: Special values (NaN, Infinity, denormals, zero)
 - **Does not handle**: Far-path cases (expDiff > 1)
 - **Assumption**: Input operands are normalized IEEE 754 single-precision floats
+
+#### Performance Optimization: Overflow Prediction
+Uses AND-reduction to predict rounding overflow in parallel with the rounding adder:
+- **Observation**: For `x + 1`, overflow occurs iff all bits of `x` are 1
+- **Implementation**: `overflow = roundPlus1 && resultMantissaRegularized(25, 2).andR && !subFix`
+- **Benefit**: AND-reduction is O(log n) depth, computed in parallel with O(n) adder
+- **Note**: `subFix` cases excluded as they don't perform true +1 rounding
 
 #### Error Conditions
 - No explicit error signaling implemented
