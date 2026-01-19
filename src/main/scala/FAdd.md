@@ -2,7 +2,7 @@
 
 ## Overview
 
-This file implements IEEE 754 single-precision floating-point addition hardware modules using Chisel3. It provides constants, utility functions, and the FAddFarPath module for far-path addition.
+This file implements IEEE 754 single-precision floating-point addition hardware modules using Chisel3. It provides constants, utility functions, the FAddClosePath module for close-path addition (expDiff ≤ 1), and the FAddFarPath module for far-path addition (expDiff > 1).
 
 ## External Interface
 
@@ -41,6 +41,57 @@ This file implements IEEE 754 single-precision floating-point addition hardware 
 - No explicit error signaling implemented
 - Undefined behavior if preconditions are violated
 - Special values will produce incorrect results
+
+### Module: FAddClosePath
+
+**Purpose**: Implements the close-path algorithm for IEEE 754 single-precision floating-point addition when the exponent difference is 0 or 1. Uses leading zero prediction (LZP) to handle massive cancellation in effective subtraction.
+
+**IO Bundle**: `FAddClosePathIO`
+
+#### Inputs
+- `biggerSrc: UInt(32.W)` - IEEE 754 single-precision float with larger or equal exponent
+- `smallerSrc: UInt(32.W)` - IEEE 754 single-precision float with smaller or equal exponent
+- `op: Bool()` - Operation selector (false = add, true = subtract)
+- `expDiff: UInt(8.W)` - Exponent difference between biggerSrc and smallerSrc (must be 0 or 1)
+
+#### Outputs
+- `result: UInt(32.W)` - IEEE 754 single-precision floating-point result
+
+#### Behavior
+1. Decomposes input operands into sign, exponent, and mantissa fields
+2. Extends mantissas with implicit leading 1 and sticky bit
+3. Aligns smaller mantissa by shifting right if expDiff = 1
+4. **Leading Zero Prediction (LZP)**: Predicts leading zeros for both operand orders
+   - Computes three predictions: lz, lzPlus1, lzMinus1
+   - Selects appropriate prediction based on carry-out from mantissa operation
+5. Performs mantissa addition or effective subtraction based on operation
+6. **Mantissa Regularization**: Normalizes result based on operation type
+   - Addition: Handles overflow by concatenating carry bit
+   - Subtraction: Handles negative results by computing absolute value
+7. **Rounding**: Implements round-to-nearest-even with proper tie-breaking
+8. **Normalization**: Left-shifts mantissa by predicted leading zero count
+   - Adjusts prediction if initial prediction was off by one
+9. Calculates result exponent with adjustments for normalization and overflow
+10. Assembles result in IEEE 754 format
+
+#### Constraints and Assumptions
+- **Precondition**: biggerSrc must have exponent ≥ smallerSrc exponent
+- **Precondition**: expDiff must be 0 or 1 (close-path condition)
+- **Does not handle**: Special values (NaN, Infinity, denormals, zero)
+- **Does not handle**: Far-path cases (expDiff > 1)
+- **Assumption**: Input operands are normalized IEEE 754 single-precision floats
+
+#### Error Conditions
+- No explicit error signaling implemented
+- Undefined behavior if preconditions are violated
+- Special values will produce incorrect results
+
+#### Testing
+See `src/test/scala/FAddClosePathTest.scala` for comprehensive test coverage including:
+- Basic addition and subtraction with expDiff=0 and expDiff=1
+- Mixed sign operations
+- Edge cases (negative results, overflow conditions)
+- 10,000 random test cases validating IEEE 754 compliance
 
 ### Module: FAdd (Incomplete)
 
