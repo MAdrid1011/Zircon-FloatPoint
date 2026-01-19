@@ -102,7 +102,8 @@ class FAddFarPath extends Module {
     val (resultMantissa, carry2) = Adder(resultMantissaSB, roundPlus1, 0.U, MANTISSA_WIDTH + 1)
 
     // Second normalization stage: handle rounding overflow
-    val overflow = carry2 === 1.U
+    // Overflow prediction using AND-reduction O(log n) instead of waiting for adder carry O(n)
+    val overflow = roundPlus1 && resultMantissaSB.andR
     val resultMantissaFinal = Cat(carry2, resultMantissa) >> overflow
 
     // Calculate result exponent with normalization adjustments
@@ -175,7 +176,8 @@ class FAddClosePath extends Module {
     val adderCarryIn = Mux(subFix, Mux(carry === 0.U, 1.U, 0.U), roundPlus1)
     val (resultMantissaRoundOffTemp, resultMantissaRoundOffCarry) = Adder(adderSrc1, adderSrc2, adderCarryIn, 24)
     val resultMantissaRoundOff = resultMantissaRoundOffTemp ## (closeop & resultMantissaRegularized(1))
-    val overflow = resultMantissaRoundOffCarry === 1.U && !subFix
+    // Overflow prediction using AND-reduction O(log n) instead of waiting for adder carry O(n)
+    val overflow = roundPlus1 && resultMantissaRegularized(25, 2).andR && !subFix
 
     // fix prediction enable
     def fixPredictionEn(src: UInt, prediction: UInt): Bool = {
