@@ -13,10 +13,11 @@ This directory contains the main hardware implementation files for the Zircon Fl
 **Components**:
 - `IEEE754Constants` - Bit position and width constants for IEEE 754 format
 - `FPUtils` - Utility functions for floating-point operations (breakdown, addition)
-- `FAddFarPath` - Far-path addition module for large exponent differences (expDiff > 1)
-- `FAdd` - (Planned) Complete addition module with near-path and special value handling
+- `FAddFarPath` - Far-path addition for large exponent differences (expDiff > 1)
+- `FAddClosePath` - Close-path addition for small exponent differences (expDiff ≤ 1)
+- `FAdd` - Complete addition module with automatic path selection
 
-**Status**: FAddFarPath is complete and tested; FAdd module is incomplete.
+**Status**: All modules complete and tested; special values (NaN, Infinity, denormals) not yet supported.
 
 **Documentation**: See `FAdd.md` for detailed interface documentation.
 

@@ -93,15 +93,52 @@ See `src/test/scala/FAddClosePathTest.scala` for comprehensive test coverage inc
 - Edge cases (negative results, overflow conditions)
 - 10,000 random test cases validating IEEE 754 compliance
 
-### Module: FAdd (Incomplete)
+### Module: FAdd
 
-**Status**: Not yet implemented (see TODO comment in source)
+**Purpose**: Top-level IEEE 754 single-precision floating-point addition module that automatically selects between FAddFarPath and FAddClosePath based on exponent difference.
 
-**Planned functionality**:
-- Near-path addition for small exponent differences (≤ 1)
-- Integration with FAddFarPath for large exponent differences (> 1)
-- Special value handling (NaN, Infinity, denormals, zero)
-- Operand comparison and routing logic
+**IO Bundle**: `FAddIO`
+
+#### Inputs
+- `src1: UInt(32.W)` - First IEEE 754 single-precision operand
+- `src2: UInt(32.W)` - Second IEEE 754 single-precision operand  
+- `op: Bool()` - Operation selector (false = add, true = subtract)
+
+#### Outputs
+- `result: UInt(32.W)` - IEEE 754 single-precision floating-point result
+
+#### Behavior
+1. Decomposes both input operands into sign, exponent, and mantissa fields
+2. **Exponent Difference Calculation**: Uses parallel subtraction
+   - Performs both `exp1 - exp2` and `exp2 - exp1` simultaneously
+   - Selects correct absolute difference based on carry/overflow bit
+   - Identifies which operand has larger exponent (becomes biggerSrc)
+3. **Path Selection**: Determines which datapath to use
+   - Checks bits [7:2] of expDiff using OR-reduction
+   - If any bit in [7:2] is set → expDiff > 1 → selects Far path
+   - Otherwise → expDiff ≤ 1 → selects Close path
+4. **Datapath Execution**: Routes operands to selected path
+   - Far path: FAddFarPath module handles large exponent differences
+   - Close path: FAddClosePath module handles small differences with LZP
+5. **Result Selection**: Multiplexes output from selected path
+
+#### Constraints and Assumptions
+- **Does not handle**: Special values (NaN, Infinity, denormals, zero)
+- **Assumption**: Input operands are normalized IEEE 754 single-precision floats
+- **Guaranteed**: Bit-exact IEEE 754 results for normalized number operations
+
+#### Error Conditions
+- No explicit error signaling implemented
+- Special values will produce incorrect results
+- Zero operands may produce incorrect results
+
+#### Testing
+See `src/test/scala/FAddTest.scala` for comprehensive test coverage including:
+- Basic addition and subtraction operations
+- Path selection validation (Far vs Close path)
+- Boundary cases around expDiff = 1
+- Mixed sign operations
+- 10,000+ random test cases validating IEEE 754 compliance
 
 ## Internal Helpers
 
@@ -235,8 +272,8 @@ See `src/test/scala/FAddFarPathReferenceTest.scala` for comprehensive test cover
 
 ## Future Work
 
-- Complete FAdd module with near-path support
-- Implement special value handling (NaN, Infinity, denormals)
-- Add zero operand detection
+- Implement special value handling (NaN, Infinity, denormals, zero)
+- Add explicit zero operand detection and fast path
 - Integrate exception signaling (overflow, underflow, inexact)
 - Support additional rounding modes beyond round-to-nearest-even
+- Pipeline the FAdd module for higher throughput
