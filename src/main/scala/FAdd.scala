@@ -221,8 +221,60 @@ class FAddClosePath extends Module {
     
 }
 
-// TODO: Complete FAdd module implementation
-// This will include:
-// - Near-path addition (for small exponent differences)
-// - Integration of FAddFarPath for large exponent differences
-// - Special value handling (NaN, Infinity, denormals, zero)
+class FAdd extends Module {
+    import FPUtils._
+    import IEEE754Constants._
+
+    val io = IO(new FAddIO())
+
+    // Step 1: Decompose operands and compute exponent difference using parallel subtraction
+    val (sign1, exp1, mant1) = floatBreakdown(io.src1)
+    val (sign2, exp2, mant2) = floatBreakdown(io.src2)
+
+    // Parallel exponent subtraction for absolute difference
+    val (expDiff1, carry1) = Adder(exp1, ~exp2, 1.U, 8)
+    val (expDiff2, carry2) = Adder(exp2, ~exp1, 1.U, 8)
+
+    // Select based on carry (overflow indicates which was larger)
+    val expDiff = Mux(carry1.asBool, expDiff1, expDiff2)
+    val biggerSrc = Mux(carry1.asBool, io.src1, io.src2)
+    val smallerSrc = Mux(carry1.asBool, io.src2, io.src1)
+    
+    // Path operation is always the same as io.op
+    // For addition: commutative, so order doesn't matter
+    // For subtraction: we'll fix the sign later if operands were swapped
+    val pathOp = io.op
+
+    // Step 2: Path selection - Far if expDiff > 1, Close if expDiff <= 1
+    // expDiff > 1 means expDiff >= 2, so check if any bit [7:1] is set
+    val isFarPath = expDiff(7, 1).orR  // Check if bits [7:1] contain any 1
+
+    // Step 3: Instantiate both path modules
+    val farPath = Module(new FAddFarPath)
+    val closePath = Module(new FAddClosePath)
+
+    // Connect Far path
+    farPath.io.biggerSrc := biggerSrc
+    farPath.io.smallerSrc := smallerSrc
+    farPath.io.op := pathOp
+    farPath.io.expDiff := expDiff
+
+    // Connect Close path
+    closePath.io.biggerSrc := biggerSrc
+    closePath.io.smallerSrc := smallerSrc
+    closePath.io.op := pathOp
+    closePath.io.expDiff := expDiff
+
+    // Step 4: Select result based on path selection
+    val pathResult = Mux(isFarPath, farPath.io.result, closePath.io.result)
+    
+    // If operands were swapped (carry1=false) and operation is subtraction (io.op=true),
+    // we need to flip the result sign because: src1 - src2 = -(src2 - src1)
+    val needSignFlip = !carry1.asBool && io.op
+    val resultWithCorrectSign = Mux(needSignFlip, 
+        Cat(~pathResult(31), pathResult(30, 0)),  // Flip sign bit
+        pathResult
+    )
+    
+    io.result := resultWithCorrectSign
+}
