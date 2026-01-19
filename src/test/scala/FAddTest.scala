@@ -8,6 +8,9 @@ class FAddTest extends AnyFlatSpec with ChiselScalatestTester {
   // Enable VCD waveform output
   val vcdAnnotation = Seq(WriteVcdAnnotation)
 
+  // Floating-point comparison tolerance
+  val FLOATING_POINT_TOLERANCE = 1e-6
+
   // Helper function to create IEEE 754 single-precision float
   def floatToBits(sign: Int, exp: Int, mantissa: Int): BigInt = {
     require(sign == 0 || sign == 1, "Sign must be 0 or 1")
@@ -74,7 +77,7 @@ class FAddTest extends AnyFlatSpec with ChiselScalatestTester {
 
         println(f"$desc: result=$resultFloat%.10f, expected=$expected%.10f")
         assert(
-          Math.abs(resultFloat - expected) < 1e-6,
+          Math.abs(resultFloat - expected) < FLOATING_POINT_TOLERANCE,
           f"Mismatch: $desc\nResult: $resultFloat%.10f\nExpected: $expected%.10f"
         )
       }
@@ -86,7 +89,7 @@ class FAddTest extends AnyFlatSpec with ChiselScalatestTester {
       val random = new Random(42)
       var farPathCount = 0
 
-      for (i <- 0 until 1000) {
+      for (i <- 0 until 10000) {
         // Generate numbers with expDiff > 1 (at least 2)
         val exp1 = 100 + random.nextInt(50)  // exp1 in [100, 149]
         val exp2 = exp1 - (2 + random.nextInt(30))  // exp2 smaller by at least 2
@@ -117,7 +120,7 @@ class FAddTest extends AnyFlatSpec with ChiselScalatestTester {
             // Use relative error for floating point comparison
             val relativeError = if (expected != 0) Math.abs((resultFloat - expected) / expected) else Math.abs(resultFloat - expected)
             assert(
-              relativeError < 1e-6 || Math.abs(resultFloat - expected) < 1e-6,
+              relativeError < FLOATING_POINT_TOLERANCE || Math.abs(resultFloat - expected) < FLOATING_POINT_TOLERANCE,
               f"Far path test $i failed:\nf1=$f1%.10e (exp=$exp1)\nf2=$f2%.10e (exp=$exp2)\nop=$op\nResult: $resultFloat%.10e\nExpected: $expected%.10e\nRelative error: $relativeError%.10e"
             )
           }
@@ -164,7 +167,7 @@ class FAddTest extends AnyFlatSpec with ChiselScalatestTester {
             // Use relative error for floating point comparison
             val relativeError = if (expected != 0) Math.abs((resultFloat - expected) / expected) else Math.abs(resultFloat - expected)
             assert(
-              relativeError < 1e-6 || Math.abs(resultFloat - expected) < 1e-6,
+              relativeError < FLOATING_POINT_TOLERANCE || Math.abs(resultFloat - expected) < FLOATING_POINT_TOLERANCE,
               f"Close path test $i failed:\nf1=$f1%.10e (exp=$exp1)\nf2=$f2%.10e (exp=$exp2)\nop=$op\nResult: $resultFloat%.10e\nExpected: $expected%.10e\nRelative error: $relativeError%.10e"
             )
           }
@@ -207,7 +210,7 @@ class FAddTest extends AnyFlatSpec with ChiselScalatestTester {
           if (!isSpecialValue(expected) && !isSpecialValue(resultFloat)) {
             val relativeError = if (expected != 0) Math.abs((resultFloat - expected) / expected) else Math.abs(resultFloat - expected)
             assert(
-              relativeError < 1e-6 || Math.abs(resultFloat - expected) < 1e-6,
+              relativeError < FLOATING_POINT_TOLERANCE || Math.abs(resultFloat - expected) < FLOATING_POINT_TOLERANCE,
               f"Boundary test failed at expDiff=$expDiff:\nf1=$f1%.10e\nf2=$f2%.10e\nop=$op\nResult: $resultFloat%.10e\nExpected: $expected%.10e"
             )
           }
@@ -254,7 +257,7 @@ class FAddTest extends AnyFlatSpec with ChiselScalatestTester {
             totalTests += 1
             val relativeError = if (expected != 0) Math.abs((resultFloat - expected) / expected) else Math.abs(resultFloat - expected)
             
-            if (relativeError < 1e-6 || Math.abs(resultFloat - expected) < 1e-6) {
+            if (relativeError < FLOATING_POINT_TOLERANCE || Math.abs(resultFloat - expected) < FLOATING_POINT_TOLERANCE) {
               successCount += 1
             } else {
               println(f"Test $i failed:")
@@ -302,7 +305,7 @@ class FAddTest extends AnyFlatSpec with ChiselScalatestTester {
             println(f"$desc: result=$resultFloat%.10f, expected=$expected%.10f")
             val relativeError = if (expected != 0) Math.abs((resultFloat - expected) / expected) else Math.abs(resultFloat - expected)
             assert(
-              relativeError < 1e-6 || Math.abs(resultFloat - expected) < 1e-6,
+              relativeError < FLOATING_POINT_TOLERANCE || Math.abs(resultFloat - expected) < FLOATING_POINT_TOLERANCE,
               f"Mismatch: $desc\nResult: $resultFloat%.10f\nExpected: $expected%.10f"
             )
           }

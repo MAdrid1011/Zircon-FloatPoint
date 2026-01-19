@@ -25,6 +25,33 @@ This directory contains the test suites for hardware modules, written using Chis
 
 **Test Count**: 50+ test cases
 
+### FAddClosePathTest.scala
+
+**Purpose**: Comprehensive testing for the FAddClosePath module with leading zero prediction.
+
+**Coverage**: Close-path addition, LZP validation, expDiff=0 and expDiff=1 cases, 10,000 random tests
+
+**Test Count**: 10,000+ test cases
+
+### FAddTest.scala
+
+**Purpose**: Integration testing for the complete FAdd module with automatic path selection.
+
+**Test Strategy**:
+- Validates path selection logic (Far vs Close path based on expDiff)
+- Tests sign correction for subtraction with swapped operands
+- Comprehensive random testing across all path combinations
+
+**Coverage**:
+- Basic addition and subtraction operations
+- Far path selection verification (10,000 test cases)
+- Close path selection verification (1,000 test cases)
+- Boundary testing around expDiff = 1
+- Mixed sign operations
+- 10,000+ comprehensive random test cases
+
+**Test Count**: 22,000+ test cases total
+
 ## Test Organization
 
 ### Helper Functions
@@ -111,8 +138,7 @@ ln -s ../../scripts/pre-commit .git/hooks/pre-commit
 
 ## Future Test Additions
 
-- FAdd complete module tests (with near-path)
-- Special value tests (NaN, Infinity, denormals, zero)
+- Special value tests for FAdd (NaN, Infinity, denormals, zero)
 - Exception flag validation tests
 - Performance benchmarking tests
 - Coverage analysis integration
