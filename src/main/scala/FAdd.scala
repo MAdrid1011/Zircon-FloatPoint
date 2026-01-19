@@ -139,40 +139,61 @@ class FAddClosePath extends Module {
     val smallerMantissaExtended = Cat(smallerMantissaSB, 0.U(1.W))
     val smallerMantissaFull = Mux(io.expDiff(0), smallerMantissaExtended >> 1, smallerMantissaExtended)
     // leading zero predictor
-    def leadingZeroPredictor(src1: UInt, src2: UInt, closeop: Bool): UInt = {
-        val t = Reverse(src1 ^ src2)
-        val z = Reverse(~(src1 | src2))
-        val f = VecInit.tabulate(25)(i => 
-            !t(i) & !(if (i == 24) true.B else z(i + 1))
-        )
-        Mux(closeop, PriorityEncoder(f), 0.U)
+    def leadingZeroPredictor(src1: UInt, src2: UInt): (UInt, UInt, UInt) = {
+        val n = src1.getWidth
+        assert(n == src2.getWidth, "src1 and src2 must have the same width")
+        val (src1Pad, src2Pad) = (Cat(src1, 0.U(1.W)), Cat(src2, 0.U(1.W)))
+        val xor = src1Pad ^ src2Pad
+        val z = src1Pad | ~src2Pad
+        val f = VecInit.tabulate(n){i =>
+            xor(i+1) && z(i)    
+        }.asUInt
+        val lz = PriorityEncoder(Reverse(f))
+        val (lzPlus1, _) = Adder(lz, 1.U, 0.U, lz.getWidth)
+        val (lzMinus1, _) = Adder(lz, ~(1.U), 1.U, lz.getWidth)
+        // (Mux(closeop, lz, 0.U), Mux(closeop, lzPlus1, 0.U))
+        (lz, lzPlus1, lzMinus1)
     }
-    val lzPredict = leadingZeroPredictor(biggerMantissaFull, smallerMantissaFull, closeop)
+    val (lzPredictBigger, lzPlus1Bigger, lzMinus1Bigger) = leadingZeroPredictor(biggerMantissaFull, smallerMantissaFull)
+    val (lzPredictSmaller, lzPlus1Smaller, lzMinus1Smaller) = leadingZeroPredictor(smallerMantissaFull, biggerMantissaFull)
     // perform addition or subtraction for mantissa
     val (sum, carry) = Adder(biggerMantissaFull, Mux(closeop === 1.U, ~smallerMantissaFull, smallerMantissaFull), closeop, 25)
+    val (lzPredict, lzPlus1, lzMinus1) = (Mux(carry === 1.U, lzPredictBigger, lzPredictSmaller), Mux(carry === 1.U, lzPlus1Bigger, lzPlus1Smaller), Mux(carry === 1.U, lzMinus1Bigger, lzMinus1Smaller))
     // if the expDiff == 0, and closeop is minus and the carry is zero, then we need to get the absolute value of the sum
-    val (resultMantissaAbs, resultMantissaAbsCarry) = Adder(0.U, ~sum(24, 1), 1.U, 25)
-    val resultMantissaAbsFixed = Mux(!io.expDiff(0) && closeop === 1.U && carry === 0.U, resultMantissaAbs, sum(24, 1))
-    // fix prediction enable
-    def fixPredictionEn(src: UInt, prediction: UInt, closeop: Bool): UInt = {
-        val srcShifted = src << prediction
-        !srcShifted(23) & closeop
-    }
-    val fixPredictionEnable = fixPredictionEn(resultMantissaAbsFixed, lzPredict, closeop)
-    // if the expDiff == 1, we need 1bit round off
-    val (resultMantissaRoundOff, overflow) = Adder(sum(24, 1), 0.U, sum(0) & sum(1), 24)
-    // val resultMantissa = Mux(io.expDiff(0), Cat(overflow, resultMantissaRoundOff) >> overflow,  resultMantissaAbsFixed)
+    // whatever the expDiff is, if the closeop is add, we need to regularize the result mantissa
+    val subFix = !io.expDiff(0) && closeop === 1.U
+    val regularizeMinus1 = closeop === 0.U && carry === 1.U
+    val resultMantissaRegularized = Mux(closeop === 0.U && carry === 1.U, Cat(carry, sum), sum ## 0.U(1.W))
+    val roundPlus1 = (closeop === 0.U || sum(24) === 1.U) && resultMantissaRegularized(1) && (resultMantissaRegularized(2) || resultMantissaRegularized(0))
 
-    // calculate result exponent: minus lzpredict first. if fix prediction enable, minus 1, moreover if overflow, add 1
-    val (exponentOffset, _) = Adder(lzPredict, 
-        Cat(Fill(EXP_WIDTH - 1, !fixPredictionEnable & overflow), fixPredictionEnable | !overflow),
-        fixPredictionEnable ^ overflow, 
+    // round off or get the absolute value of the sum
+    val (resultMantissaRoundOffTemp, resultMantissaRoundOffCarry) = Adder(
+        Mux(subFix, 0.U, resultMantissaRegularized(25, 2)),
+        Mux(subFix, Mux(carry === 0.U,~(sum(24, 1)), sum(24, 1)), 0.U),
+        Mux(subFix, Mux(carry === 0.U, 1.U, 0.U), roundPlus1),
+        24
+    )
+    val resultMantissaRoundOff = resultMantissaRoundOffTemp ## (closeop & resultMantissaRegularized(1))
+    val overflow = resultMantissaRoundOffCarry === 1.U && !subFix
+
+    // fix prediction enable
+    def fixPredictionEn(src: UInt, prediction: UInt): Bool = {
+        val srcShifted = src << prediction
+        !srcShifted(24)
+    }
+    val fixPredictionEnable = fixPredictionEn(resultMantissaRoundOff, lzPredict)
+    val lzOffset = Mux(fixPredictionEnable, lzPlus1, lzPredict)
+    val resultMantissa = Mux(closeop === 1.U,
+        (((Cat(Mux(io.expDiff(0), resultMantissaRoundOffCarry, 0.U(1.W)), resultMantissaRoundOff)) << lzOffset) >> overflow),
+        (Cat(resultMantissaRoundOffCarry, resultMantissaRoundOff) >> overflow)
+    )
+    val (resultExponent, _) = Adder(biggerExponent, 
+        Mux(closeop === 0.U, carry & overflow, ~(0.U(3.W) ## Mux(io.expDiff(0), lzOffset, Mux(~fixPredictionEnable && overflow, lzMinus1, lzPredict)))),
+        Mux(closeop === 0.U, carry | overflow, Mux(io.expDiff(0), 1.U, Mux(fixPredictionEnable && !overflow, 0.U, 1.U))),
         EXP_WIDTH
     )
-    val (resultExponent, _) = Adder(biggerExponent, ~exponentOffset, 1.U, EXP_WIDTH)
-    val resultMantissa = Mux(io.expDiff(0), Cat(overflow, resultMantissaRoundOff),  resultMantissaAbsFixed) << exponentOffset
     val resultSign = Mux(closeop === 1.U && carry === 0.U, !biggerSign, biggerSign)
-    io.result := Cat(resultSign, resultExponent, resultMantissa(MANTISSA_HIGH, MANTISSA_LOW))
+    io.result := Cat(resultSign, resultExponent, resultMantissa(MANTISSA_HIGH+1, MANTISSA_LOW+1))
     
 }
 
