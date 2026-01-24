@@ -21,6 +21,18 @@ This directory contains the main hardware implementation files for the Zircon Fl
 
 **Documentation**: See `FAdd.md` for detailed interface documentation.
 
+### FMul.scala
+
+**Purpose**: IEEE 754 single-precision floating-point multiplication hardware implementation.
+
+**Components**:
+- `FMulUtils` - Utility functions for multiplication (Booth encoding, CSA, Wallace tree)
+- `FMul` - Complete multiplication module with mantissa multiplication, normalization, and rounding
+
+**Status**: All modules complete and tested; special values (NaN, Infinity, denormals) not yet supported.
+
+**Documentation**: See `FMul.md` for detailed interface documentation.
+
 ## Module Structure
 
 ### FAddFarPath Module
@@ -65,7 +77,6 @@ sbt test
 
 ## Future Additions
 
-- FMul.scala - Floating-point multiplication
 - FDiv.scala - Floating-point division
 - FSqrt.scala - Floating-point square root
 - FMA.scala - Fused multiply-add
