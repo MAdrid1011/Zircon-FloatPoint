@@ -52,6 +52,30 @@ This directory contains the test suites for hardware modules, written using Chis
 
 **Test Count**: 22,000+ test cases total
 
+### FMulTest.scala
+
+**Purpose**: Comprehensive testing for the FMul multiplication module.
+
+**Test Strategy**:
+- Uses Scala's `Float` type as golden reference model
+- Validates hardware implementation against software floating-point
+- Generates VCD waveform output for debugging
+
+**Coverage**:
+- Basic multiplication operations (simple floating-point numbers)
+- Sign combination handling (positive/negative operand combinations)
+- Powers of two (exact representation cases)
+- Mantissa normalization cases (products >= 2.0 and < 2.0)
+- Various exponent combinations (1,000 random tests)
+- Comprehensive random test cases (10,000 tests)
+- Rounding edge cases (2,000 tests with specific mantissa patterns)
+- Small magnitude numbers (near underflow boundary)
+- Large magnitude numbers (near overflow boundary)
+- Multiplication by 1.0 (identity operation)
+- Multiplication by -1.0 (sign flip operation)
+
+**Test Count**: 15,000+ test cases total
+
 ## Test Organization
 
 ### Helper Functions
@@ -138,7 +162,8 @@ ln -s ../../scripts/pre-commit .git/hooks/pre-commit
 
 ## Future Test Additions
 
-- Special value tests for FAdd (NaN, Infinity, denormals, zero)
+- Special value tests for FAdd and FMul (NaN, Infinity, denormals, zero)
 - Exception flag validation tests
 - Performance benchmarking tests
 - Coverage analysis integration
+- FDiv and FSqrt test suites
